@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { Slider } from './ui/slider';
@@ -13,7 +13,7 @@ interface PillarData {
   id: number;
   name: string;
   subtitle: string;
-  color: string;
+  color: string;          // e.g., "bg-teal-100"
   sliderQuestion: string;
   questions: Question[];
 }
@@ -36,26 +36,35 @@ export function ClientPillarAssessment({
   const [rating, setRating] = useState<number>(5);
   const [answers, setAnswers] = useState<Record<string, string>>({});
 
+  // make a fresh empty answers map for THIS pillar's questions
+  const emptyAnswersForThisPillar = () =>
+    Object.fromEntries((pillarData.questions ?? []).map(q => [q.id, ''] as const));
+
+  // 🔁 reset form whenever we switch to a different pillar
+  useEffect(() => {
+    setRating(5);
+    setAnswers(emptyAnswersForThisPillar());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pillarData.id]); // only when the pillar itself changes
+
   const updateAnswer = (questionId: string, value: string) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: value
-    }));
+    setAnswers(prev => ({ ...prev, [questionId]: value }));
   };
 
   const handleNext = () => {
-    onNext({ rating, answers });
+    // send a snapshot of this pillar's responses up to App.tsx
+    onNext({ rating, answers: { ...answers } });
   };
 
-  const progress = (currentStep / totalSteps) * 100;
+  const progress = Math.round((currentStep / totalSteps) * 100);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-teal-50 via-blue-50 to-purple-50 p-6">
       <div className="max-w-2xl mx-auto py-8">
-        {/* Subtle progress indication */}
+        {/* Progress */}
         <div className="text-center mb-8">
           <p className="text-slate-400 text-sm">
-            Section {currentStep} of {totalSteps} — {pillarData.name}
+            Section {currentStep} of {totalSteps} — {pillarData.name} ({progress}%)
           </p>
         </div>
 
@@ -74,7 +83,7 @@ export function ClientPillarAssessment({
             <p className="text-slate-700 mb-6 text-center">
               {pillarData.sliderQuestion}
             </p>
-            
+
             <div className="space-y-4">
               <Slider
                 value={[rating]}
@@ -84,7 +93,7 @@ export function ClientPillarAssessment({
                 step={1}
                 className="w-full"
               />
-              
+
               <div className="flex items-center justify-between text-sm">
                 <span className="text-slate-500">0</span>
                 <div className="flex items-center gap-2">
@@ -98,16 +107,16 @@ export function ClientPillarAssessment({
             </div>
           </div>
 
-          {/* Questions section */}
+          {/* Questions */}
           <div className="space-y-4 mb-8">
-            {pillarData.questions.map((question, index) => (
+            {(pillarData.questions ?? []).map((question) => (
               <div key={question.id} className="bg-white rounded-xl shadow-sm p-6">
                 <label className="block mb-3">
                   <span className="text-slate-700 text-sm mb-2 block">
                     {question.text}
                   </span>
                   <Textarea
-                    value={answers[question.id] || ''}
+                    value={answers[question.id] ?? ''}
                     onChange={(e) => updateAnswer(question.id, e.target.value)}
                     placeholder="Share your thoughts here..."
                     rows={3}
@@ -121,11 +130,7 @@ export function ClientPillarAssessment({
           {/* Navigation */}
           <div className="flex gap-3">
             {onBack && (
-              <Button
-                onClick={onBack}
-                variant="outline"
-                className="px-8"
-              >
+              <Button onClick={onBack} variant="outline" className="px-8">
                 Back
               </Button>
             )}

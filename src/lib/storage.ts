@@ -1,6 +1,4 @@
-// src/lib/storage.ts
-
-/** ---------- Types ---------- */
+// src/lib/storage.ts — baseline: clients + observations (mood/note) + flags
 export type AssessmentResponses = {
     [pillarId: number]: { rating: number; answers: Record<string, string> };
   };
@@ -8,7 +6,7 @@ export type AssessmentResponses = {
   export type ClientRecord = {
     id: string;
     name?: string;
-    dateISO: string;               // last assessment date
+    dateISO: string;
     responses: AssessmentResponses;
     priorities: number[];
   };
@@ -17,16 +15,13 @@ export type AssessmentResponses = {
     id: string;
     dateISO: string;
     text: string;
-    mood: number;                  // 0–10
-    areas: string[];               // tags the client selected
-    flagged?: boolean;             // therapist flag
+    mood: number;
+    flagged?: boolean;
   };
   
-  /** ---------- Keys ---------- */
-  const CLIENTS_KEY = 'clients';        // map: id -> ClientRecord
-  const OBS_INDEX_KEY = 'obs:index';    // optional future use
+  const CLIENTS_KEY = 'clients';
+  const obsKey = (clientId: string) => `obs:${clientId}`;
   
-  /** ---------- Safe JSON helpers ---------- */
   function readJSON<T>(key: string, fallback: T): T {
     try {
       const raw = localStorage.getItem(key);
@@ -41,66 +36,64 @@ export type AssessmentResponses = {
     } catch {}
   }
   
-  /** ---------- Client CRUD ---------- */
+  /* Clients */
   export function getAllClients(): Record<string, ClientRecord> {
     return readJSON<Record<string, ClientRecord>>(CLIENTS_KEY, {});
   }
-  
   export function getClient(id: string): ClientRecord | undefined {
-    const all = getAllClients();
-    return all[id];
+    return getAllClients()[id];
   }
-  
   export function saveClient(record: ClientRecord) {
     const all = getAllClients();
     all[record.id] = record;
     writeJSON(CLIENTS_KEY, all);
   }
-  
   export function deleteClient(id: string) {
     const all = getAllClients();
     delete all[id];
     writeJSON(CLIENTS_KEY, all);
-    // also remove observations for that client
     localStorage.removeItem(obsKey(id));
   }
-  
   export function clearAll() {
-    // be surgical, don’t nuke everything by default
     localStorage.removeItem(CLIENTS_KEY);
-    // remove all obs:* keys
     Object.keys(localStorage).forEach((k) => {
       if (k.startsWith('obs:')) localStorage.removeItem(k);
     });
   }
   
-  /** ---------- Observation storage ---------- */
-  function obsKey(clientId: string) {
-    return `obs:${clientId}`;
-  }
-  
+  /* Observations */
   export function getObservations(clientId: string): Observation[] {
-    return readJSON<Observation[]>(obsKey(clientId), []);
+    const list = readJSON<Observation[]>(obsKey(clientId), []);
+    return list.map((o) => ({
+      id: String(o.id),
+      dateISO: String(o.dateISO),
+      text: String(o.text ?? ''),
+      mood: Number.isFinite(o.mood) ? Number(o.mood) : 0,
+      flagged: Boolean(o.flagged),
+    }));
   }
-  
   export function addObservation(clientId: string, obs: Observation) {
     const list = getObservations(clientId);
-    list.push(obs);
-    // newest at top when reading
+    list.push({
+      ...obs,
+      id: obs.id || `obs-${Date.now()}`,
+      dateISO: obs.dateISO || new Date().toISOString(),
+      text: String(obs.text ?? ''),
+      mood: Number.isFinite(obs.mood) ? Number(obs.mood) : 0,
+      flagged: Boolean(obs.flagged),
+    });
     list.sort((a, b) => new Date(b.dateISO).getTime() - new Date(a.dateISO).getTime());
     writeJSON(obsKey(clientId), list);
   }
-  
   export function setObservationFlag(clientId: string, obsId: string, flagged: boolean) {
     const list = getObservations(clientId);
-    const idx = list.findIndex((o) => o.id === obsId);
-    if (idx >= 0) {
-      list[idx] = { ...list[idx], flagged };
+    const i = list.findIndex((o) => o.id === obsId);
+    if (i >= 0) {
+      list[i] = { ...list[i], flagged };
       writeJSON(obsKey(clientId), list);
     }
   }
-
-  // Default export for convenience
+  
   export default {
     getAllClients,
     getClient,

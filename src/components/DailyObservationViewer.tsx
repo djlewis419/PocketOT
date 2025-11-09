@@ -24,8 +24,7 @@ export function DailyObservationViewer({ clientId, refreshKey = 0, onBack }: Pro
       }
       const c = storage.getClient(clientId);
       setClientName(c?.name || clientId);
-      const list = storage.getObservations(clientId);
-      setObservations(Array.isArray(list) ? list : []);
+      setObservations(storage.getObservations(clientId));
     } catch (e) {
       console.error('[Therapist] load observations failed:', e);
       setObservations([]);
@@ -37,12 +36,8 @@ export function DailyObservationViewer({ clientId, refreshKey = 0, onBack }: Pro
   }, [load, refreshKey]);
 
   const toggleFlag = (obsId: string, current?: boolean) => {
-    try {
-      storage.setObservationFlag(clientId, obsId, !current);
-      load();
-    } catch (e) {
-      console.error('[Therapist] setObservationFlag failed:', e);
-    }
+    storage.setObservationFlag(clientId, obsId, !current);
+    load();
   };
 
   const header = (
@@ -74,9 +69,7 @@ export function DailyObservationViewer({ clientId, refreshKey = 0, onBack }: Pro
         {header}
 
         <Card className="p-4 bg-white border-slate-200 shadow-sm">
-          <p className="text-slate-600 text-sm">
-            {clientName || 'Client'} — self-reported reflections
-          </p>
+          <p className="text-slate-600 text-sm">{clientName || 'Client'} — self-reported reflections</p>
         </Card>
 
         {observations.length === 0 ? (
@@ -114,8 +107,6 @@ export function DailyObservationViewer({ clientId, refreshKey = 0, onBack }: Pro
                     </Button>
                   </div>
                 </div>
-
-                {/* No areas UI anymore */}
                 <p className="text-slate-800 whitespace-pre-wrap">{o.text || '—'}</p>
               </Card>
             ))}
